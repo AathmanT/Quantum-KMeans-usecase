@@ -2,7 +2,7 @@ import ballerina/http;
 import ballerina/lang.runtime;
 import ballerina/log;
 
-function createQHanaRequest() returns http:Request{
+isolated function createQHanaRequest() returns http:Request{
     // This function is used to create an HTTP Request with the required configurations 
     http:Request request = new;
     error? contentType = request.setContentType("application/x-www-form-urlencoded");
@@ -11,7 +11,7 @@ function createQHanaRequest() returns http:Request{
     return request;
 }
 
-function pollForResult(string pollingUrl) returns json|error{
+isolated function pollForResult(string pollingUrl) returns json|error{
     // This function is used to poll the endpoint until the task is completed
     http:Client pollEndpoint = check new (pollingUrl);
 
@@ -26,21 +26,21 @@ function pollForResult(string pollingUrl) returns json|error{
             log:printError("task failed");
             break;
         }
-        runtime:sleep(5000);
+        runtime:sleep(1);
     }
 
     
     return json_payload;
 }
 
-function searchForOutput(json json_payload, string searchTerm) returns string|error{
+isolated function searchForOutput(json json_payload, string searchTerm) returns string|error{
     // This function is used to extract the results url from the json payload
     string resultsUrl = "";
 
     json[] outputs = check json_payload.outputs.ensureType();
     json inner_output = outputs[0];
     string output_name = check inner_output.name.ensureType();
-    
+
     if (output_name == searchTerm){
         string result = check inner_output.href.ensureType();
         resultsUrl = result;
@@ -52,7 +52,7 @@ function searchForOutput(json json_payload, string searchTerm) returns string|er
     return resultsUrl;
 }
 
-function getResultsUrl(http:Response postResponse, string searchTerm) returns string|error{
+isolated function getResultsUrl(http:Response postResponse, string searchTerm) returns string|error{
     // This function is used to poll the tasks API and retrieve the results URL
     string resultsUrl = "";
 
