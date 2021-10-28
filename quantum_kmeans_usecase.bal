@@ -26,7 +26,8 @@ isolated function pollForResult(string pollingUrl) returns json|error{
             log:printError("task failed");
             break;
         }
-        runtime:sleep(1);
+        // Poll every 5 seconds
+        runtime:sleep(5);
     }
 
     
@@ -71,6 +72,19 @@ isolated function getResultsUrl(http:Response postResponse, string searchTerm) r
     return resultsUrl;
 }
 
+isolated function invokeQHanaPlugin(http:Client qhanaClient, string pluginURL, string payload, string resultsFileName) returns string|error{
+        // Create an HTTP request with the required configuration
+        http:Request pluginRequest = createQHanaRequest();
+        // Set the necessary payload
+        pluginRequest.setPayload(payload);
+        // Invoke the Plugin API
+        http:Response pluginResponse = check qhanaClient->post(pluginURL, pluginRequest);
+        // Get the results file URL
+        string pluginResultsUrl = check getResultsUrl(pluginResponse, resultsFileName);
+
+        return pluginResultsUrl;
+}
+
 // This service takes in the dataset URL as the input and creates a Quantum KMeans plot. 
 // This service returns the result files URLs to the user.
 service / on new http:Listener(8090) {
@@ -96,63 +110,34 @@ service / on new http:Listener(8090) {
         string attributeSimilaritiesUrl = check input_payload.attributeSimilaritiesUrl;
 
         // Create an HTTP client for the QHana backend
-        http:Client httpEndpoint = check new (QHANA_HOST_URL);
+        http:Client qhanaClient = check new (QHANA_HOST_URL);
 
 
-        // Create an HTTP request with the required configuration
-        http:Request simDistTransformerRequest = createQHanaRequest();
-        // Create the required payload
+        // Invoke Sim to Dist Transformer API
         string attributes = "dominanteFarbe\ndominanterZustand\ndominanteCharaktereigenschaft\ndominanterAlterseindruck\ngenre";
         string simDistTransformerPayload = "attributeSimilaritiesUrl=" + attributeSimilaritiesUrl + "&attributes=" + attributes + "&transformer=linear_inverse";
-        simDistTransformerRequest.setPayload(simDistTransformerPayload);
-        // Invoke the simDistTransformer API
-        http:Response simDistTransformerPostResponse = check httpEndpoint->post(URL_SIM_TO_DIST, simDistTransformerRequest);
-        // Get the results file URL
-        string attributeDistanceUrl = check getResultsUrl(simDistTransformerPostResponse, RESPONSE_ATTRIBUTE_DISTANCE_FILE);
+        string attributeDistanceUrl = check invokeQHanaPlugin(qhanaClient, URL_SIM_TO_DIST, simDistTransformerPayload, RESPONSE_ATTRIBUTE_DISTANCE_FILE);
 
 
-        // Create an HTTP request with the required configuration
-        http:Request distanceAggregatorRequest = createQHanaRequest();
-        // Create the required payload
+        // Inovke Distance Aggregator API
         string distanceAggregatorPayload = "attributeDistancesUrl=" + attributeDistanceUrl + "&aggregator=mean";
-        distanceAggregatorRequest.setPayload(distanceAggregatorPayload);
-        // Invoke distance aggregator API
-        http:Response distAggregatorPostResponse = check httpEndpoint->post(URL_AGGREGATION, distanceAggregatorRequest);
-        // Get the results file URL
-        string entityDistanceUrl = check getResultsUrl(distAggregatorPostResponse, RESPONSE_ENTITY_DISTANCE_JSON);
-        
+        string entityDistanceUrl = check invokeQHanaPlugin(qhanaClient, URL_AGGREGATION, distanceAggregatorPayload, RESPONSE_ENTITY_DISTANCE_JSON);   
 
-        // Create an HTTP request with the required configuration
-        http:Request mdsRequest = createQHanaRequest();
-        // Create the required payload
+
+        // Invoke MDS API
         string mdsPayload = "entityDistancesUrl=" + entityDistanceUrl + "&dimensions=2&metric=metric_mds&nInit=4&maxIter=300";
-        mdsRequest.setPayload(mdsPayload);
-        // Invoke mds API
-        http:Response mdsPostResponse = check httpEndpoint->post(URL_MDS, mdsRequest);
-        // Get the results file URL
-        string mdsEntityPointsUrl = check getResultsUrl(mdsPostResponse, RESPONSE_ENTITY_POINTS_JSON);
+        string mdsEntityPointsUrl = check invokeQHanaPlugin(qhanaClient, URL_MDS, mdsPayload, RESPONSE_ENTITY_POINTS_JSON);   
         
 
-        // Create an HTTP request with the required configuration
-        http:Request quantumKMeansRequest = createQHanaRequest();
-        // Create the required payload
+        // Invoke Quantum KMeans API
         string quantumKMeansPayload = "entityPointsUrl=" + mdsEntityPointsUrl + "&clustersCnt=2&variant=negative_rotation&backend=aer_statevector_simulator&ibmqToken=&customBackend=";
-        quantumKMeansRequest.setPayload(quantumKMeansPayload);
-        // Invoke quantumKMeans API
-        http:Response quantumKMeansPostResponse = check httpEndpoint->post(URL_KMEANS, quantumKMeansRequest);
-        // Get the results file URL
-        string clustersUrl = check getResultsUrl(quantumKMeansPostResponse, RESPONSE_CLUSTERS_JSON);   
+        string clustersUrl = check invokeQHanaPlugin(qhanaClient, URL_KMEANS, quantumKMeansPayload, RESPONSE_CLUSTERS_JSON);   
+        
 
-
-        // Create an HTTP request with the required configuration
-        http:Request visualizationRequest = createQHanaRequest();
-        // Create the required payload
+        // Invoke Visualization API
         string visualizationPayload = "entityPointsUrl=" + mdsEntityPointsUrl + "&clustersUrl=" + clustersUrl;
-        visualizationRequest.setPayload(visualizationPayload);
-        // Invoke the visualization API
-        http:Response visualizationPostResponse = check httpEndpoint->post(URL_VISUALIZATION, visualizationRequest);
-        // Get the results file URL
-        string plotsUrl = check getResultsUrl(visualizationPostResponse, RESPONSE_PLOT); 
+        string plotsUrl = check invokeQHanaPlugin(qhanaClient, URL_VISUALIZATION, visualizationPayload, RESPONSE_PLOT);   
+
 
         // Create a response with all the results URLs 
         http:Response user_response = new;
