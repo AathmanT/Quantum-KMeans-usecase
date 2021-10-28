@@ -19,10 +19,10 @@ const string RESPONSE_PLOT = "plot.html";
 // Parameter value
 const string PARAMETER_DISTANCE_ATTRIBUTES = "dominanteFarbe\ndominanterZustand\ndominanteCharaktereigenschaft\ndominanterAlterseindruck\ngenre";
 
-isolated function createQHanaRequest() returns http:Request {
+isolated function createQHanaRequest() returns http:Request|error {
     // This function is used to create an HTTP Request with the required configurations 
     http:Request request = new;
-    error? contentType = request.setContentType("application/x-www-form-urlencoded");
+    check request.setContentType("application/x-www-form-urlencoded");
     request.setHeader("Authorization", "Basic Y2hvcmVvX3VzZXI6cXcqMmFxXm5ndHQl");
     request.setHeader("Accept", "application/json");
     return request;
@@ -87,7 +87,7 @@ isolated function getResultsUrl(http:Response postResponse, string searchTerm) r
 
 isolated function invokeQHanaPlugin(http:Client qhanaClient, string pluginURL, string payload, string resultsFileName) returns string|error {
     // Create an HTTP request with the required configuration
-    http:Request pluginRequest = createQHanaRequest();
+    http:Request pluginRequest = check createQHanaRequest();
     // Set the necessary payload
     pluginRequest.setPayload(payload);
     // Invoke the Plugin API
@@ -101,10 +101,9 @@ isolated function invokeQHanaPlugin(http:Client qhanaClient, string pluginURL, s
 // This service takes in the dataset URL as the input and creates a Quantum KMeans plot. 
 // This service returns the result files URLs to the user.
 service / on new http:Listener(8090) {
-    resource function post .(http:Request user_request) returns http:Response|error {
+    resource function post .(@http:Payload json input_payload) returns http:Response|error {
 
         // Get user the dataset URL from the user request
-        json input_payload = check user_request.getJsonPayload();
         string attributeSimilaritiesUrl = check input_payload.attributeSimilaritiesUrl;
 
         // Create an HTTP client for the QHana backend
