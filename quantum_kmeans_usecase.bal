@@ -2,6 +2,24 @@ import ballerina/http;
 import ballerina/lang.runtime;
 import ballerina/log;
 
+    // Host URL
+    const string QHANA_HOST_URL = "http://choreo-qhana.eastus2.cloudapp.azure.com";
+    // Plugin URLs
+    const string URL_SIM_TO_DIST = "/plugins/sim-to-dist-transformers@v0-1-0/process/";
+    const string URL_AGGREGATION = "/plugins/distance-aggregator@v0-1-0/process/";
+    const string URL_MDS = "/plugins/mds@v0-1-0/process/";
+    const string URL_KMEANS = "/plugins/quantum-k-means@v0-1-0/process/";
+    const string URL_VISUALIZATION = "/plugins/visualization@v0-1-0/process/";
+    // Output filenames used in search
+    const string RESPONSE_ATTRIBUTE_DISTANCE_FILE = "attr_dist.zip";
+    const string RESPONSE_ENTITY_DISTANCE_JSON = "entity_distances.json";
+    const string RESPONSE_ENTITY_POINTS_JSON = "entity_points.json";
+    const string RESPONSE_CLUSTERS_JSON = "clusters.json";
+    const string RESPONSE_PLOT = "plot.html";
+    // Parameter value
+    const string PARAMETER_DISTANCE_ATTRIBUTES = "dominanteFarbe\ndominanterZustand\ndominanteCharaktereigenschaft\ndominanterAlterseindruck\ngenre";
+
+
 isolated function createQHanaRequest() returns http:Request{
     // This function is used to create an HTTP Request with the required configurations 
     http:Request request = new;
@@ -86,21 +104,6 @@ isolated function invokeQHanaPlugin(http:Client qhanaClient, string pluginURL, s
 service / on new http:Listener(8090) {
     resource function post .(http:Request user_request) returns http:Response|error {
         
-        // Host URL
-        string QHANA_HOST_URL = "http://choreo-qhana.eastus2.cloudapp.azure.com";
-        // Plugin URLs
-        string URL_SIM_TO_DIST = "/plugins/sim-to-dist-transformers@v0-1-0/process/";
-        string URL_AGGREGATION = "/plugins/distance-aggregator@v0-1-0/process/";
-        string URL_MDS = "/plugins/mds@v0-1-0/process/";
-        string URL_KMEANS = "/plugins/quantum-k-means@v0-1-0/process/";
-        string URL_VISUALIZATION = "/plugins/visualization@v0-1-0/process/";
-        // Output filenames used in search
-        string RESPONSE_ATTRIBUTE_DISTANCE_FILE = "attr_dist.zip";
-        string RESPONSE_ENTITY_DISTANCE_JSON = "entity_distances.json";
-        string RESPONSE_ENTITY_POINTS_JSON = "entity_points.json";
-        string RESPONSE_CLUSTERS_JSON = "clusters.json";
-        string RESPONSE_PLOT = "plot.html";
-
         // Get user the dataset URL from the user request
         json input_payload = check user_request.getJsonPayload();
         string attributeSimilaritiesUrl = check input_payload.attributeSimilaritiesUrl;
@@ -110,8 +113,7 @@ service / on new http:Listener(8090) {
 
 
         // Invoke Sim to Dist Transformer API
-        string attributes = "dominanteFarbe\ndominanterZustand\ndominanteCharaktereigenschaft\ndominanterAlterseindruck\ngenre";
-        string simDistTransformerPayload = "attributeSimilaritiesUrl=" + attributeSimilaritiesUrl + "&attributes=" + attributes + "&transformer=linear_inverse";
+        string simDistTransformerPayload = "attributeSimilaritiesUrl=" + attributeSimilaritiesUrl + "&attributes=" + PARAMETER_DISTANCE_ATTRIBUTES + "&transformer=linear_inverse";
         string attributeDistanceUrl = check invokeQHanaPlugin(qhanaClient, URL_SIM_TO_DIST, simDistTransformerPayload, RESPONSE_ATTRIBUTE_DISTANCE_FILE);
 
 
