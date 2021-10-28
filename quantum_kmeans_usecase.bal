@@ -29,8 +29,6 @@ isolated function pollForResult(string pollingUrl) returns json|error{
         // Poll every 5 seconds
         runtime:sleep(5);
     }
-
-    
     return json_payload;
 }
 
@@ -48,8 +46,6 @@ isolated function searchForOutput(json json_payload, string searchTerm) returns 
     }else{
         log:printError("Couldn't retrive the results url");
     }
-
-
     return resultsUrl;
 }
 
