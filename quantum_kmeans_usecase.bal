@@ -19,8 +19,10 @@ const string RESPONSE_PLOT = "plot.html";
 // Parameter value
 const string PARAMETER_DISTANCE_ATTRIBUTES = "dominanteFarbe\ndominanterZustand\ndominanteCharaktereigenschaft\ndominanterAlterseindruck\ngenre";
 
+# Create an HTTP Request with the required configurations 
+#
+# + return - Constructed http:Request with the configurations or error if the function fails
 isolated function createQHanaRequest() returns http:Request|error {
-    // This function is used to create an HTTP Request with the required configurations 
     http:Request request = new;
     check request.setContentType("application/x-www-form-urlencoded");
     request.setHeader("Authorization", "Basic Y2hvcmVvX3VzZXI6cXcqMmFxXm5ndHQl");
@@ -28,8 +30,11 @@ isolated function createQHanaRequest() returns http:Request|error {
     return request;
 }
 
+# Poll the endpoint until the task is completed
+#
+# + pollingUrl - URL used for polling
+# + return - JSON payload after polling the Tasks API or error if the function fails
 isolated function pollForResult(string pollingUrl) returns json|error {
-    // This function is used to poll the endpoint until the task is completed
     http:Client pollEndpoint = check new (pollingUrl);
 
     json json_payload = {};
@@ -49,8 +54,12 @@ isolated function pollForResult(string pollingUrl) returns json|error {
     return json_payload;
 }
 
+# Extract the results url from the json payload
+#
+# + json_payload - JSON payload returned after polling the Tasks API
+# + searchTerm - filename that needs to be searched in the results
+# + return - URL of the results file or error if the function fails
 isolated function searchForOutput(json json_payload, string searchTerm) returns string|error {
-    // This function is used to extract the results url from the json payload
     string resultsUrl = "";
 
     json[] outputs = check json_payload.outputs.ensureType();
@@ -58,16 +67,19 @@ isolated function searchForOutput(json json_payload, string searchTerm) returns 
     string output_name = check inner_output.name.ensureType();
 
     if (output_name == searchTerm) {
-        string result = check inner_output.href.ensureType();
-        resultsUrl = result;
+        resultsUrl = check inner_output.href.ensureType();
     } else {
         log:printError("Couldn't retrive the results url");
     }
     return resultsUrl;
 }
 
+# Decide and poll the Tasks API and extract the results url from the json payload
+#
+# + postResponse - Response that is obtained when the QHana Plugin APIs are called
+# + searchTerm - filename that needs to be searched in the results
+# + return - URL of the results file or empty string if status code is not redirect or error if the function fails
 isolated function getResultsUrl(http:Response postResponse, string searchTerm) returns string|error {
-    // This function is used to poll the tasks API and retrieve the results URL
     string resultsUrl = "";
 
     //REDIRECT_SEE_OTHER_303
@@ -85,6 +97,13 @@ isolated function getResultsUrl(http:Response postResponse, string searchTerm) r
     return resultsUrl;
 }
 
+# Invoke the QHana APIs and provide the results url
+#
+# + qhanaClient - HTTP client used to connect to the QHana Plugin Runner
+# + pluginURL - URL of the QHana plugin to invoke
+# + payload - Payload that needs to be sent to the QHana plugin
+# + resultsFileName - filename that needs to be searched in the results
+# + return - URL of the results file or error if the function fails
 isolated function invokeQHanaPlugin(http:Client qhanaClient, string pluginURL, string payload, string resultsFileName) returns string|error {
     // Create an HTTP request with the required configuration
     http:Request pluginRequest = check createQHanaRequest();
@@ -93,17 +112,17 @@ isolated function invokeQHanaPlugin(http:Client qhanaClient, string pluginURL, s
     // Invoke the Plugin API
     http:Response pluginResponse = check qhanaClient->post(pluginURL, pluginRequest);
     // Get the results file URL
-    string pluginResultsUrl = check getResultsUrl(pluginResponse, resultsFileName);
-
-    return pluginResultsUrl;
+    return check getResultsUrl(pluginResponse, resultsFileName);
 }
 
-// This service takes in the dataset URL as the input and creates a Quantum KMeans plot. 
-// This service returns the result files URLs to the user.
 service / on new http:Listener(8090) {
+    # Invoke QHana APIs with the user's dataset to provide the results url for the Quantum KMeans workflow
+    #
+    # + input_payload - User payload containing the URL of the input dataset
+    # + return - HTTP response containing the URLs of all the results files or error if the service invocation fails
     resource function post .(@http:Payload json input_payload) returns http:Response|error {
 
-        // Get user the dataset URL from the user request
+        // Get the dataset URL from the user request
         string attributeSimilaritiesUrl = check input_payload.attributeSimilaritiesUrl;
 
         // Create an HTTP client for the QHana backend
